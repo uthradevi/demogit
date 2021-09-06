@@ -1,0 +1,256 @@
+import warnings
+warnings.filterwarnings("ignore")
+#import Libraries
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+
+#import dataset
+Dataset=pd.read_csv('KDD_Dataset.csv')
+
+print (Dataset.head())
+print(Dataset.describe())
+
+#Data Preprocessing
+
+#check missing values
+print ('Dataset contain null:\t',Dataset.isnull().values.any())
+print ('Describe null:\n',Dataset.isnull().sum())
+print ('No of  null:\t',Dataset.isnull().sum().sum())
+
+#splitting Independent variable and class lables
+x=Dataset.iloc[:,:-1].values
+x1=pd.DataFrame(x)
+
+#class lable
+y=Dataset.iloc[:,41].values
+k1=pd.DataFrame(y)
+
+#class lable converting
+for i in range(999):
+    if y[i]=='normal':
+        y[i]=0
+    else:
+        y[i]=1
+type(y)
+type(x)
+y=y.astype('int')
+
+
+print('Non Attack', round(Dataset['class' ].value_counts()[0]/len(Dataset) * 100,2), '% of the dataset')
+print('Attack', round(Dataset['class'].value_counts()[1]/len(Dataset) * 100,2), '% of the dataset')
+
+colors = ["#0101DF", "#DF0101"]
+sns.countplot('class', data=Dataset, palette=colors)
+attack_df = Dataset.loc[Dataset['class'] == 1]
+non_attack_df = Dataset.loc[Dataset['class'] == 0][:492]
+normal_distributed_df = pd.concat([attack_df, non_attack_df])
+# Shuffle dataframe rows
+new_df = normal_distributed_df.sample(frac=1, random_state=42)
+
+new_df.head()
+print('Distribution of the Classes in the subsample dataset')
+print(new_df['class'].value_counts()/len(new_df)*100)
+
+sns.countplot('class', data=new_df, palette=colors)
+plt.title('Equally Distributed Classes', fontsize=14)
+plt.show()
+
+
+
+#Encoding categorical data
+from sklearn.preprocessing import LabelEncoder,OneHotEncoder
+labelencoder_x=LabelEncoder()
+x[:,1]=labelencoder_x.fit_transform(x[:,1])
+Y=pd.DataFrame(x[:,1])
+labelencoder_x=LabelEncoder()
+x[:,2]=labelencoder_x.fit_transform(x[:,2])
+Y=pd.DataFrame(x[:,2])
+labelencoder_x=LabelEncoder()
+x[:,3]=labelencoder_x.fit_transform(x[:,3])
+Y=pd.DataFrame(x[:,3])
+
+onehotencoder=OneHotEncoder()
+x=x[:,1:]
+x=onehotencoder.fit_transform(x).toarray()
+onehotencoder=OneHotEncoder()
+x=x[:,2:]
+x=onehotencoder.fit_transform(x).toarray()
+onehotencoder=OneHotEncoder()
+x=x[:,3:]
+x=onehotencoder.fit_transform(x).toarray()
+
+
+#write in file
+np.savetxt('encode_valuse.txt',x)
+
+# Splitting the dataset into the Training set and Test set for linear
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(x, y, test_size = 0.30, random_state = 0)
+
+
+from sklearn.svm import SVC  
+svclassifier = SVC(kernel='linear')  
+svclassifier.fit(X_train, y_train)    
+
+#prediction
+y_pred = svclassifier.predict(X_test)  
+
+from sklearn.metrics import accuracy_score
+accuracy_1 = accuracy_score(y_test,y_pred)*100
+print ("SVM ACCURACY",accuracy_1)
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score 
+model = LogisticRegression()
+model.fit(X_train, y_train)
+predicted_classes = model.predict(X_test)
+accuracy_2 = accuracy_score(y_test,predicted_classes)*100
+parameters = model.coef_
+
+print ("LOGISTIC REGRESSION",accuracy_2)
+
+# training the model on training set
+from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import accuracy_score
+gnb = GaussianNB()
+gnb.fit(X_train, y_train)
+  
+# making predictions on the testing set
+y_pred = gnb.predict(X_test)
+  
+# comparing actual response values (y_test) with predicted response values (y_pred)
+accuracy_3=accuracy_score(y_test, y_pred)*100
+print("GAUSSIAN NAIVE BAYES:",accuracy_3)
+
+
+
+from sklearn.ensemble import VotingClassifier
+model = VotingClassifier(estimators=[('lr', model), ('svc', svclassifier),('gnb',gnb)], voting='hard')
+model.fit(X_train,y_train)
+y_pre= model.predict(X_test)
+acc=accuracy_score(y_test,y_pre)*100
+print("Ensemble Accuracy:",acc)
+# Making the Confusion Matrix
+from sklearn.metrics import confusion_matrix
+cm = confusion_matrix(y_test, y_pred)
+
+TP = cm[0][0]
+FP = cm[0][1]
+FN = cm[1][0]
+TN = cm[1][1]
+Total_TP_FP=cm[0][0]+cm[0][1]
+Total_FN_TN=cm[1][0]+cm[1][1]
+
+#True Positive Calculation
+TP1=(((cm[0][0])/Total_TP_FP)*100)
+
+#False Positive Calculation
+FP1= (((cm[0][1])/Total_TP_FP)*100)
+
+#False Negative Calculation
+FN1=(((cm[1][0])/Total_FN_TN)*100)
+
+#True Negative Calculation
+TN1=(((cm[1][1])/Total_FN_TN)*100)
+
+#Total TP,TN,FP,FN
+Total=TP1+FP1+FN1+TN1
+
+#Error Rate Calculation
+error_rate=((FP1+FN1)/Total)*100
+
+#Precision Calculation
+precision=TP1/(TP1+FP1)*100
+
+#Recall Calculation
+recall=TP1/(TP1+FN1)*100
+
+#F1 Score
+f1=2*((precision*recall)/(precision+recall))
+
+#sensitivity
+sensitivity=TP1/(TP1+FN1)*100
+
+#specificity
+specificity=TN1/(TN1+FP1)*100
+
+print("\n\n\tResult Generation")
+print("\t------------------")
+print('\n\tTrue positive = ', TP1, '%')
+print('\n\tFalse positive = ', FP1, '%')
+print('\n\tFalse negative = ', FN1, '%')
+print('\n\tTrue negative = ',TN1 , '%')
+print('\n\tError Rate = ',error_rate , '%')
+print('\n\tAccuracy = ',acc , '%')
+print('\n\tPrecision = ',precision , '%')
+print('\n\tRecall = ',recall , '%')
+print('\n\tF1-Score = ',f1 , '%')
+print('\n\tsensitivity=',sensitivity,'%')
+print('\n\tspecificity=',specificity,'%')
+
+
+from matplotlib import pyplot as plt
+vals=[accuracy_1,accuracy_2,accuracy_3,acc]
+inds=range(len(vals))
+labels=['SVM','LR','GNB','ENSEMBLE']
+fig,ax=plt.subplots()
+rects=ax.bar(inds,vals)
+ax.set_xticks([ind for ind in inds])
+ax.set_xticklabels(labels)
+plt.ylabel('accuracy')
+plt.xlabel('classifier')
+plt.show()
+
+from matplotlib import pyplot as plt
+vals=[acc,precision,recall,specificity,sensitivity]
+inds=range(len(vals))
+labels=['accuracy','precision','recall','specificity','sensitivity']
+fig,ax=plt.subplots()
+rects=ax.bar(inds,vals)
+ax.set_xticks([ind for ind in inds])
+ax.set_xticklabels(labels)
+plt.ylabel('percentage for ensemble classifier')
+plt.xlabel('confusion matrix')
+plt.show()
+
+from sklearn.metrics import roc_curve
+from sklearn.metrics import roc_auc_score
+from matplotlib import pyplot
+
+# calculate AUC
+auc = roc_auc_score(y_test, y_pred)
+print('AUC: %.3f' % auc)
+# calculate roc curve
+fpr, tpr, thresholds = roc_curve(y_test, y_pred)
+# plot no skill
+pyplot.plot([0, 1], [0, 1], linestyle='--')
+# plot the roc curve for the model
+pyplot.plot(fpr, tpr, marker='.')
+plt.ylabel('TRUE POSITIVE RATE')
+plt.xlabel('FALSE POSITIVE RATE')
+
+# show the plot
+pyplot.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
